@@ -87,7 +87,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc, getDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- Firebase Initialization and Authentication ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -95,6 +95,7 @@
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         let app, auth, db, userId;
+        let unsubscribeNotes = null; // Store the onSnapshot listener
 
         const setupFirebase = async () => {
             try {
@@ -135,7 +136,7 @@
                     // Get filename for database key
                     const selectedPdfFileName = selectedPdfUrl.split('/').pop();
                     // Update notes display and load from database
-                    await loadNotesFromDatabase(selectedPdfFileName);
+                    loadNotesFromDatabase(selectedPdfFileName);
                     // Load and render PDF
                     loadAndRenderPdf(selectedPdfUrl);
                 }
@@ -161,15 +162,18 @@
             return doc(db, `/artifacts/${appId}/users/${userId}/notes`, fileName);
         };
         
-        const loadNotesFromDatabase = async (fileName) => {
+        const loadNotesFromDatabase = (fileName) => {
             const notesTextarea = document.getElementById('notesContent');
             notesTextarea.value = "Loading notes...";
             notesTextarea.disabled = true;
 
+            if (unsubscribeNotes) {
+                unsubscribeNotes(); // Detach the old listener
+            }
+
             const docRef = getNotesDocRef(fileName);
 
-            try {
-                const docSnap = await getDoc(docRef);
+            unsubscribeNotes = onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const notes = docSnap.data().text;
                     notesTextarea.value = notes;
@@ -178,12 +182,12 @@
                     notesTextarea.value = "";
                     console.log("No notes found for this PDF. Starting fresh.");
                 }
-            } catch (e) {
-                console.error("Error loading notes: ", e);
-                notesTextarea.value = "Error loading notes.";
-            } finally {
                 notesTextarea.disabled = false;
-            }
+            }, (error) => {
+                console.error("Error loading notes: ", error);
+                notesTextarea.value = "Error loading notes.";
+                notesTextarea.disabled = false;
+            });
         };
 
         const saveNotesToDatabase = async (fileName, notes) => {
@@ -237,7 +241,9 @@
             if (!pdfDoc) return;
             try {
                 const page = await pdfDoc.getPage(pageNum);
-                const viewport = page.getViewport({ scale: 1.5 });
+                // Adjust viewport to fit the canvas and maintain aspect ratio
+                const scale = Math.min(pdfCanvas.width / page.view[2], pdfCanvas.height / page.view[3]);
+                const viewport = page.getViewport({ scale: scale });
                 pdfCanvas.width = viewport.width;
                 pdfCanvas.height = viewport.height;
                 const renderContext = {
