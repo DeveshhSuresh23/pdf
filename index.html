@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Teacher Video</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <style>
+        /* Hide the scrollbar but allow scrolling */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none; /* IE and Edge */
+            scrollbar-width: none; /* Firefox */
+        }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="relative w-full max-w-4xl mx-auto rounded-lg shadow-2xl overflow-hidden bg-gray-900">
+        <video id="teacherVideo" class="w-full h-auto object-cover" autoplay muted playsinline loop>
+            <source src="mainpage.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+
+        <div id="pdfOverlay" class="absolute z-10 p-2 overflow-y-auto no-scrollbar" style="transition: opacity 0.3s ease-in-out;">
+            <canvas id="pdfCanvas" class="w-full h-auto"></canvas>
+        </div>
+
+        <div id="statusMessage" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hidden"></div>
+
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-4 z-20">
+            <input type="file" id="pdfInput" accept=".pdf" class="hidden">
+            
+            <button id="loadPdfBtn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-indigo-700 transition duration-300">
+                Load PDF
+            </button>
+            
+            <button id="togglePdfBtn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-blue-700 transition duration-300 hidden">
+                Hide PDF
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // Set the workerSrc for PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        const pdfInput = document.getElementById('pdfInput');
+        const loadPdfBtn = document.getElementById('loadPdfBtn');
+        const pdfOverlay = document.getElementById('pdfOverlay');
+        const pdfCanvas = document.getElementById('pdfCanvas');
+        const togglePdfBtn = document.getElementById('togglePdfBtn');
+        const statusMessage = document.getElementById('statusMessage');
+
+        let pdfDoc = null;
+
+        // Function to display a status message to the user
+        const showStatusMessage = (message) => {
+            statusMessage.textContent = message;
+            statusMessage.classList.remove('hidden');
+            setTimeout(() => {
+                statusMessage.classList.add('hidden');
+            }, 3000); // Hide after 3 seconds
+        };
+
+        // Function to load and render the PDF from a file URL
+        const loadAndRenderPdf = async (url) => {
+            showStatusMessage('Loading PDF...');
+            try {
+                // Asynchronously downloads PDF
+                const loadingTask = pdfjsLib.getDocument(url);
+                pdfDoc = await loadingTask.promise;
+                console.log('PDF loaded successfully.');
+                renderPage(1); // Render the first page initially
+                togglePdfBtn.style.display = 'block'; // Show toggle button after PDF loads
+                statusMessage.classList.add('hidden'); // Hide status message on success
+            } catch (error) {
+                console.error('Error loading PDF:', error);
+                showStatusMessage('Failed to load PDF.');
+                togglePdfBtn.style.display = 'hidden';
+            }
+        };
+
+        // Function to render a single PDF page
+        const renderPage = async (pageNum) => {
+            if (!pdfDoc) return;
+            try {
+                const page = await pdfDoc.getPage(pageNum);
+                const viewport = page.getViewport({ scale: 1.5 });
+                pdfCanvas.width = viewport.width;
+                pdfCanvas.height = viewport.height;
+
+                const renderContext = {
+                    canvasContext: pdfCanvas.getContext('2d'),
+                    viewport: viewport
+                };
+                await page.render(renderContext).promise;
+                console.log(`Page ${pageNum} rendered.`);
+            } catch (error) {
+                console.error(`Error rendering page ${pageNum}:`, error);
+                showStatusMessage('Error rendering PDF page.');
+            }
+        };
+
+        // Toggle PDF visibility
+        togglePdfBtn.addEventListener('click', () => {
+            const isVisible = pdfOverlay.style.opacity === '1' || pdfOverlay.style.opacity === '';
+            if (isVisible) {
+                pdfOverlay.style.opacity = '0';
+                pdfOverlay.style.pointerEvents = 'none'; // Prevents interaction when hidden
+                togglePdfBtn.textContent = 'Show PDF';
+            } else {
+                pdfOverlay.style.opacity = '1';
+                pdfOverlay.style.pointerEvents = 'auto';
+                togglePdfBtn.textContent = 'Hide PDF';
+            }
+        });
+
+        // Trigger file input click when the "Load PDF" button is clicked
+        loadPdfBtn.addEventListener('click', () => {
+            pdfInput.click();
+        });
+
+        // Handle file selection from the input
+        pdfInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                const fileUrl = URL.createObjectURL(file);
+                loadAndRenderPdf(fileUrl);
+            } else {
+                showStatusMessage('Please select a valid PDF file.');
+                console.error('Please select a valid PDF file.');
+            }
+        });
+        
+        // Set the initial position and size of the overlay based on the new video
+        // NOTE: You will need to fine-tune these values.
+        const setOverlayPosition = () => {
+            const video = document.getElementById('teacherVideo');
+            const videoWidth = video.clientWidth;
+            const videoHeight = video.clientHeight;
+
+            // These are approximate values for the whiteboard in the 'mainpage.mp4' video
+            pdfOverlay.style.top = `${videoHeight * 0.15}px`;
+            pdfOverlay.style.left = `${videoWidth * 0.25}px`;
+            pdfOverlay.style.width = `${videoWidth * 0.50}px`;
+            pdfOverlay.style.height = `${videoHeight * 0.70}px`;
+        };
+
+        // Wait for the video to load before setting the overlay position
+        document.getElementById('teacherVideo').addEventListener('loadeddata', () => {
+            setOverlayPosition();
+        });
+
+        // Event listener for window resize to maintain responsiveness
+        window.addEventListener('resize', setOverlayPosition);
+
+    </script>
+</body>
+</html>
+```eof
