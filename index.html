@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interactive Teacher Video</title>
+    <!-- Use Tailwind CSS for responsive styling -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load PDF.js library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
         /* Hide the scrollbar but allow scrolling */
@@ -20,25 +22,39 @@
 </head>
 <body class="bg-slate-100 flex items-center justify-center min-h-screen">
 
+    <!-- Main Container -->
     <div class="relative w-full h-full min-h-screen overflow-hidden bg-gray-900">
+        <!-- Version Display -->
+        <div class="absolute top-4 left-1/2 -translate-x-1/2 z-20">
+            <h1 class="text-white text-2xl font-bold rounded-full bg-slate-800 bg-opacity-70 px-4 py-2">Version 2</h1>
+        </div>
+
+        <!-- Video Element - Now a fixed background -->
         <video id="teacherVideo" class="fixed top-0 left-0 min-w-full min-h-full w-auto h-auto object-cover" autoplay muted playsinline loop>
             <source src="mainpage.mp4" type="video/mp4">
             Your browser does not support the video tag.
         </video>
 
+        <!-- PDF Overlay Container -->
         <div id="pdfOverlay" class="absolute z-10 p-2 overflow-y-auto no-scrollbar" style="transition: opacity 0.3s ease-in-out;">
+            <!-- PDF will be rendered on this canvas -->
             <canvas id="pdfCanvas" class="w-full h-auto"></canvas>
         </div>
 
-        <div id="statusMessage" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hidden"></div>
+        <!-- Status Message for user feedback -->
+        <div id="statusMessage" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg text-lg hidden"></div>
 
+        <!-- Controls Container -->
         <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-4 z-20">
+            <!-- Dropdown menu for PDF selection -->
             <select id="pdfSelect" class="bg-gray-700 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-gray-800 transition duration-300">
                 <option value="" disabled selected>Select a PDF</option>
+                <option value="worksheet.pdf">Worksheet</option>
                 <option value="worksheet1.pdf">Worksheet 1</option>
                 <option value="worksheet2.pdf">Worksheet 2</option>
             </select>
             
+            <!-- Toggle PDF Button -->
             <button id="togglePdfBtn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-blue-700 transition duration-300 hidden">
                 Hide PDF
             </button>
@@ -151,4 +167,3 @@
     </script>
 </body>
 </html>
-```eof
