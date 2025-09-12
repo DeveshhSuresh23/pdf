@@ -18,10 +18,10 @@
         }
     </style>
 </head>
-<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4">
+<body class="bg-slate-100 flex items-center justify-center min-h-screen">
 
-    <div class="relative w-full max-w-4xl mx-auto rounded-lg shadow-2xl overflow-hidden bg-gray-900">
-        <video id="teacherVideo" class="w-full h-auto object-cover" autoplay muted playsinline loop>
+    <div class="relative w-full h-full min-h-screen overflow-hidden bg-gray-900">
+        <video id="teacherVideo" class="fixed top-0 left-0 min-w-full min-h-full w-auto h-auto object-cover" autoplay muted playsinline loop>
             <source src="mainpage.mp4" type="video/mp4">
             Your browser does not support the video tag.
         </video>
@@ -33,30 +33,28 @@
         <div id="statusMessage" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hidden"></div>
 
         <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-4 z-20">
-            <input type="file" id="pdfInput" accept=".pdf" class="hidden">
-            
-            <button id="loadPdfBtn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-indigo-700 transition duration-300">
-                Load PDF
-            </button>
+            <select id="pdfSelect" class="bg-gray-700 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-gray-800 transition duration-300">
+                <option value="" disabled selected>Select a PDF</option>
+                <option value="worksheet1.pdf">Worksheet 1</option>
+                <option value="worksheet2.pdf">Worksheet 2</option>
+            </select>
             
             <button id="togglePdfBtn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-blue-700 transition duration-300 hidden">
                 Hide PDF
             </button>
         </div>
-
     </div>
 
     <script>
         // Set the workerSrc for PDF.js
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-        const pdfInput = document.getElementById('pdfInput');
-        const loadPdfBtn = document.getElementById('loadPdfBtn');
+        const pdfSelect = document.getElementById('pdfSelect');
         const pdfOverlay = document.getElementById('pdfOverlay');
         const pdfCanvas = document.getElementById('pdfCanvas');
         const togglePdfBtn = document.getElementById('togglePdfBtn');
         const statusMessage = document.getElementById('statusMessage');
-
+        const initialLoad = true;
         let pdfDoc = null;
 
         // Function to display a status message to the user
@@ -81,8 +79,8 @@
                 statusMessage.classList.add('hidden'); // Hide status message on success
             } catch (error) {
                 console.error('Error loading PDF:', error);
-                showStatusMessage('Failed to load PDF.');
-                togglePdfBtn.style.display = 'hidden';
+                showStatusMessage('Failed to load PDF. Make sure the file exists in your repository.');
+                togglePdfBtn.style.display = 'none';
             }
         };
 
@@ -121,31 +119,21 @@
             }
         });
 
-        // Trigger file input click when the "Load PDF" button is clicked
-        loadPdfBtn.addEventListener('click', () => {
-            pdfInput.click();
-        });
-
-        // Handle file selection from the input
-        pdfInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file && file.type === 'application/pdf') {
-                const fileUrl = URL.createObjectURL(file);
-                loadAndRenderPdf(fileUrl);
-            } else {
-                showStatusMessage('Please select a valid PDF file.');
-                console.error('Please select a valid PDF file.');
+        // Handle PDF selection from the dropdown
+        pdfSelect.addEventListener('change', (event) => {
+            const selectedPdfUrl = event.target.value;
+            if (selectedPdfUrl) {
+                loadAndRenderPdf(selectedPdfUrl);
             }
         });
         
         // Set the initial position and size of the overlay based on the new video
         // NOTE: You will need to fine-tune these values.
         const setOverlayPosition = () => {
-            const video = document.getElementById('teacherVideo');
-            const videoWidth = video.clientWidth;
-            const videoHeight = video.clientHeight;
-
             // These are approximate values for the whiteboard in the 'mainpage.mp4' video
+            const videoWidth = window.innerWidth;
+            const videoHeight = window.innerHeight;
+
             pdfOverlay.style.top = `${videoHeight * 0.15}px`;
             pdfOverlay.style.left = `${videoWidth * 0.25}px`;
             pdfOverlay.style.width = `${videoWidth * 0.50}px`;
