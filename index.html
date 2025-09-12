@@ -18,6 +18,21 @@
             -ms-overflow-style: none; /* IE and Edge */
             scrollbar-width: none; /* Firefox */
         }
+        /* Custom scrollbar for notes container */
+        .notes-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .notes-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        .notes-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+        .notes-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
     </style>
 </head>
 <body class="bg-slate-100 flex items-center justify-center min-h-screen">
@@ -41,6 +56,12 @@
             <canvas id="pdfCanvas" class="w-full h-auto"></canvas>
         </div>
 
+        <!-- Notes Container -->
+        <div id="notesContainer" class="absolute top-1/2 right-4 transform -translate-y-1/2 w-64 h-96 p-4 rounded-lg shadow-lg bg-gray-800 bg-opacity-70 text-white z-20 overflow-y-auto hidden">
+            <h2 class="text-xl font-bold mb-2">Notes</h2>
+            <textarea id="notesContent" class="w-full h-full bg-transparent text-sm resize-none outline-none notes-scrollbar" placeholder="Start typing your notes here..." disabled></textarea>
+        </div>
+
         <!-- Status Message for user feedback -->
         <div id="statusMessage" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg text-lg hidden"></div>
 
@@ -49,9 +70,10 @@
             <!-- Dropdown menu for PDF selection -->
             <select id="pdfSelect" class="bg-gray-700 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-gray-800 transition duration-300">
                 <option value="" disabled selected>Select a PDF</option>
-                <option value="Definite Integral and Area - 3 Soft Copy.pdf">Definite Integral and Area - 3 Soft Copy</option>
-                <option value="Definite Integral and Area - 3 ANSWERKEY.pdf">Definite Integral and Area - 3 ANSWERKEY</option>
-                <option value="XII Chemistry Record.pdf">XII Chemistry Record</option>
+                <!-- Updated paths to reference files in the PDF-FILES folder -->
+                <option value="PDF-FILES/Definite Integral and Area - 3 Soft Copy.pdf">Definite Integral and Area - 3 Soft Copy</option>
+                <option value="PDF-FILES/Definite Integral and Area - 3 ANSWERKEY.pdf">Definite Integral and Area - 3 ANSWERKEY</option>
+                <option value="PDF-FILES/XII Chemistry Record.pdf">XII Chemistry Record</option>
             </select>
             
             <!-- Toggle PDF Button -->
@@ -61,46 +83,156 @@
         </div>
     </div>
 
-    <script>
-        // Set the workerSrc for PDF.js
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc, getDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // --- Firebase Initialization and Authentication ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        const pdfSelect = document.getElementById('pdfSelect');
+        let app, auth, db, userId;
+
+        const setupFirebase = async () => {
+            try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                // Ensure a user is authenticated
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Listen for authentication state changes
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        console.log("Firebase Auth State Changed. User ID:", userId);
+                    } else {
+                        console.log("User is signed out.");
+                        // Handle the case where the user signs out, although this is unlikely in this app
+                    }
+                });
+            } catch (e) {
+                console.error("Firebase initialization error: ", e);
+            }
+        };
+
+        const setupEventListeners = () => {
+            const pdfSelect = document.getElementById('pdfSelect');
+            const notesTextarea = document.getElementById('notesContent');
+
+            pdfSelect.addEventListener('change', async (event) => {
+                const selectedPdfUrl = event.target.value;
+                if (selectedPdfUrl) {
+                    notesContainer.classList.remove('hidden');
+                    // Get filename for database key
+                    const selectedPdfFileName = selectedPdfUrl.split('/').pop();
+                    // Update notes display and load from database
+                    await loadNotesFromDatabase(selectedPdfFileName);
+                    // Load and render PDF
+                    loadAndRenderPdf(selectedPdfUrl);
+                }
+            });
+
+            // Save notes to database as the user types
+            let saveTimeout;
+            notesTextarea.addEventListener('input', () => {
+                const selectedPdfUrl = pdfSelect.value;
+                if (selectedPdfUrl && userId) {
+                     const selectedPdfFileName = selectedPdfUrl.split('/').pop();
+                    // Debounce the save to avoid writing to the database too frequently
+                    clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(() => {
+                        saveNotesToDatabase(selectedPdfFileName, notesTextarea.value);
+                    }, 500); // Wait 500ms after the user stops typing
+                }
+            });
+        };
+
+        const getNotesDocRef = (fileName) => {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            return doc(db, `/artifacts/${appId}/users/${userId}/notes`, fileName);
+        };
+        
+        const loadNotesFromDatabase = async (fileName) => {
+            const notesTextarea = document.getElementById('notesContent');
+            notesTextarea.value = "Loading notes...";
+            notesTextarea.disabled = true;
+
+            const docRef = getNotesDocRef(fileName);
+
+            try {
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const notes = docSnap.data().text;
+                    notesTextarea.value = notes;
+                    console.log("Notes loaded successfully.");
+                } else {
+                    notesTextarea.value = "";
+                    console.log("No notes found for this PDF. Starting fresh.");
+                }
+            } catch (e) {
+                console.error("Error loading notes: ", e);
+                notesTextarea.value = "Error loading notes.";
+            } finally {
+                notesTextarea.disabled = false;
+            }
+        };
+
+        const saveNotesToDatabase = async (fileName, notes) => {
+            const docRef = getNotesDocRef(fileName);
+            try {
+                await setDoc(docRef, { text: notes });
+                console.log("Notes saved successfully.");
+            } catch (e) {
+                console.error("Error saving notes: ", e);
+            }
+        };
+
+        // --- PDF.js and UI logic (remains mostly the same) ---
         const pdfOverlay = document.getElementById('pdfOverlay');
         const pdfCanvas = document.getElementById('pdfCanvas');
         const togglePdfBtn = document.getElementById('togglePdfBtn');
         const statusMessage = document.getElementById('statusMessage');
-        const initialLoad = true;
+        const notesContainer = document.getElementById('notesContainer');
+        
         let pdfDoc = null;
 
-        // Function to display a status message to the user
         const showStatusMessage = (message) => {
             statusMessage.textContent = message;
             statusMessage.classList.remove('hidden');
             setTimeout(() => {
                 statusMessage.classList.add('hidden');
-            }, 3000); // Hide after 3 seconds
+            }, 3000);
         };
 
-        // Function to load and render the PDF from a file URL
         const loadAndRenderPdf = async (url) => {
             showStatusMessage('Loading PDF...');
             try {
-                // Asynchronously downloads PDF
+                if (!url) {
+                    console.error('Error: URL is not valid or empty.');
+                    return;
+                }
                 const loadingTask = pdfjsLib.getDocument(url);
                 pdfDoc = await loadingTask.promise;
                 console.log('PDF loaded successfully.');
-                renderPage(1); // Render the first page initially
-                togglePdfBtn.style.display = 'block'; // Show toggle button after PDF loads
-                statusMessage.classList.add('hidden'); // Hide status message on success
+                renderPage(1);
+                togglePdfBtn.style.display = 'block';
+                statusMessage.classList.add('hidden');
             } catch (error) {
                 console.error('Error loading PDF:', error);
-                showStatusMessage('Failed to load PDF. Make sure the file exists in your repository.');
+                showStatusMessage('Failed to load PDF. Make sure the file exists.');
                 togglePdfBtn.style.display = 'none';
             }
         };
 
-        // Function to render a single PDF page
         const renderPage = async (pageNum) => {
             if (!pdfDoc) return;
             try {
@@ -108,7 +240,6 @@
                 const viewport = page.getViewport({ scale: 1.5 });
                 pdfCanvas.width = viewport.width;
                 pdfCanvas.height = viewport.height;
-
                 const renderContext = {
                     canvasContext: pdfCanvas.getContext('2d'),
                     viewport: viewport
@@ -121,12 +252,11 @@
             }
         };
 
-        // Toggle PDF visibility
         togglePdfBtn.addEventListener('click', () => {
             const isVisible = pdfOverlay.style.opacity === '1' || pdfOverlay.style.opacity === '';
             if (isVisible) {
                 pdfOverlay.style.opacity = '0';
-                pdfOverlay.style.pointerEvents = 'none'; // Prevents interaction when hidden
+                pdfOverlay.style.pointerEvents = 'none';
                 togglePdfBtn.textContent = 'Show PDF';
             } else {
                 pdfOverlay.style.opacity = '1';
@@ -135,35 +265,20 @@
             }
         });
 
-        // Handle PDF selection from the dropdown
-        pdfSelect.addEventListener('change', (event) => {
-            const selectedPdfUrl = event.target.value;
-            if (selectedPdfUrl) {
-                loadAndRenderPdf(selectedPdfUrl);
-            }
-        });
-        
-        // Set the initial position and size of the overlay based on the new video
-        // NOTE: You will need to fine-tune these values.
         const setOverlayPosition = () => {
-            // These are approximate values for the whiteboard in the 'mainpage.mp4' video
             const videoWidth = window.innerWidth;
             const videoHeight = window.innerHeight;
-
             pdfOverlay.style.top = `${videoHeight * 0.15}px`;
             pdfOverlay.style.left = `${videoWidth * 0.25}px`;
             pdfOverlay.style.width = `${videoWidth * 0.50}px`;
             pdfOverlay.style.height = `${videoHeight * 0.70}px`;
         };
 
-        // Wait for the video to load before setting the overlay position
-        document.getElementById('teacherVideo').addEventListener('loadeddata', () => {
-            setOverlayPosition();
+        // Event listeners are set up after the DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            setupFirebase(); // Firebase setup starts after the DOM is ready
         });
-
-        // Event listener for window resize to maintain responsiveness
-        window.addEventListener('resize', setOverlayPosition);
-
     </script>
 </body>
 </html>
