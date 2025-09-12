@@ -41,7 +41,7 @@
     <div class="relative w-full h-full min-h-screen overflow-hidden bg-gray-900">
         <!-- Version Display -->
         <div class="absolute top-4 left-1/2 -translate-x-1/2 z-20">
-            <h1 class="text-white text-2xl font-bold rounded-full bg-slate-800 bg-opacity-70 px-4 py-2">Version 1</h1>
+            <h1 class="text-white text-2xl font-bold rounded-full bg-slate-800 bg-opacity-70 px-4 py-2">Version 2</h1>
         </div>
 
         <!-- Video Element - Now a fixed background -->
@@ -51,7 +51,7 @@
         </video>
 
         <!-- PDF Overlay Container -->
-        <div id="pdfOverlay" class="absolute z-10 p-2 overflow-y-auto no-scrollbar" style="transition: opacity 0.3s ease-in-out;">
+        <div id="pdfOverlay" class="absolute z-10 p-2 overflow-y-auto no-scrollbar opacity-0 pointer-events-none" style="transition: opacity 0.3s ease-in-out;">
             <!-- PDF will be rendered on this canvas -->
             <canvas id="pdfCanvas" class="w-full h-auto"></canvas>
         </div>
@@ -230,6 +230,10 @@
                 renderPage(1);
                 togglePdfBtn.style.display = 'block';
                 statusMessage.classList.add('hidden');
+                // Ensure the PDF is visible after loading
+                pdfOverlay.style.opacity = '1';
+                pdfOverlay.style.pointerEvents = 'auto';
+
             } catch (error) {
                 console.error('Error loading PDF:', error);
                 showStatusMessage('Failed to load PDF. Make sure the file exists.');
