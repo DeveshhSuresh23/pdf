@@ -21,7 +21,7 @@
 
     <div class="relative w-full h-full min-h-screen overflow-hidden bg-gray-900">
         <div class="absolute top-4 left-1/2 -translate-x-1/2 z-20">
-            <h1 class="text-white text-2xl font-bold rounded-full bg-slate-800 bg-opacity-70 px-4 py-2">Version 6</h1>
+            <h1 class="text-white text-2xl font-bold rounded-full bg-slate-800 bg-opacity-70 px-4 py-2">Version 7</h1>
         </div>
 
         <video id="teacherVideo" class="fixed top-0 left-0 min-w-full min-h-full w-auto h-auto object-cover" autoplay muted playsinline loop>
@@ -47,6 +47,16 @@
                 Hide PDF
             </button>
         </div>
+
+        <div id="pdfNav" class="absolute top-1/2 left-1/2 -translate-x-1/2 flex items-center space-x-4 z-20 hidden">
+            <button id="prevBtn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-blue-700 transition duration-300">
+                Prev
+            </button>
+            <span id="pageInfo" class="text-white font-bold"></span>
+            <button id="nextBtn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-blue-700 transition duration-300">
+                Next
+            </button>
+        </div>
     </div>
 
     <script>
@@ -55,7 +65,13 @@
         const pdfSelect = document.getElementById('pdfSelect');
         const togglePdfBtn = document.getElementById('togglePdfBtn');
         const statusMessage = document.getElementById('statusMessage');
+        const pdfNav = document.getElementById('pdfNav');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const pageInfo = document.getElementById('pageInfo');
+        
         let pdfDoc = null;
+        let currentPage = 1;
 
         const showStatusMessage = (message) => {
             statusMessage.textContent = message;
@@ -65,6 +81,14 @@
             }, 3000);
         };
 
+        const updatePageNumberDisplay = () => {
+            pageInfo.textContent = `Page ${currentPage} of ${pdfDoc.numPages}`;
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage === pdfDoc.numPages;
+            prevBtn.classList.toggle('opacity-50', prevBtn.disabled);
+            nextBtn.classList.toggle('opacity-50', nextBtn.disabled);
+        };
+
         const loadAndRenderPdf = async (url) => {
             showStatusMessage('Loading PDF...');
             try {
@@ -72,19 +96,18 @@
                     console.error('Error: URL is not valid or empty.');
                     return;
                 }
-                // Setting PDF.js worker source
                 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
                 
                 const loadingTask = pdfjsLib.getDocument(url);
                 pdfDoc = await loadingTask.promise;
+                currentPage = 1;
                 console.log('PDF loaded successfully.');
                 
-                const overlayRect = pdfOverlay.getBoundingClientRect();
-                pdfCanvas.width = overlayRect.width;
-                pdfCanvas.height = overlayRect.height;
-                
-                renderPage(1);
+                setOverlayDimensions(); // Set dimensions before rendering
+                renderPage(currentPage);
+
                 togglePdfBtn.style.display = 'block';
+                pdfNav.classList.remove('hidden');
                 statusMessage.classList.add('hidden');
                 pdfOverlay.style.opacity = '1';
                 pdfOverlay.style.pointerEvents = 'auto';
@@ -92,6 +115,7 @@
                 console.error('Error loading PDF:', error);
                 showStatusMessage('Failed to load PDF. Make sure the file exists.');
                 togglePdfBtn.style.display = 'none';
+                pdfNav.classList.add('hidden');
             }
         };
 
@@ -99,29 +123,31 @@
             if (!pdfDoc) return;
             try {
                 const page = await pdfDoc.getPage(pageNum);
-                const scale = Math.min(pdfCanvas.width / page.view[2], pdfCanvas.height / page.view[3]);
-                const viewport = page.getViewport({ scale: scale });
-                pdfCanvas.width = viewport.width;
+                const viewport = page.getViewport({ scale: pdfCanvas.width / page.view[2] });
+                
                 pdfCanvas.height = viewport.height;
+                
                 const renderContext = {
                     canvasContext: pdfCanvas.getContext('2d'),
                     viewport: viewport
                 };
                 await page.render(renderContext).promise;
                 console.log(`Page ${pageNum} rendered.`);
+                updatePageNumberDisplay();
             } catch (error) {
                 console.error(`Error rendering page ${pageNum}:`, error);
                 showStatusMessage('Error rendering PDF page.');
             }
         };
 
-        const setOverlayPosition = () => {
+        const setOverlayDimensions = () => {
             const videoWidth = window.innerWidth;
             const videoHeight = window.innerHeight;
             pdfOverlay.style.top = `${videoHeight * 0.15}px`;
             pdfOverlay.style.left = `${videoWidth * 0.25}px`;
             pdfOverlay.style.width = `${videoWidth * 0.50}px`;
             pdfOverlay.style.height = `${videoHeight * 0.70}px`;
+            pdfCanvas.width = pdfOverlay.clientWidth;
         };
 
         // Event Listeners
@@ -137,16 +163,38 @@
             if (isVisible) {
                 pdfOverlay.style.opacity = '0';
                 pdfOverlay.style.pointerEvents = 'none';
+                pdfNav.classList.add('hidden');
                 togglePdfBtn.textContent = 'Show PDF';
             } else {
                 pdfOverlay.style.opacity = '1';
                 pdfOverlay.style.pointerEvents = 'auto';
+                pdfNav.classList.remove('hidden');
                 togglePdfBtn.textContent = 'Hide PDF';
             }
         });
 
-        window.addEventListener('resize', setOverlayPosition);
-        document.addEventListener('DOMContentLoaded', setOverlayPosition);
+        prevBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage(currentPage);
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            if (currentPage < pdfDoc.numPages) {
+                currentPage++;
+                renderPage(currentPage);
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            setOverlayDimensions();
+            if (pdfDoc) {
+                renderPage(currentPage);
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', setOverlayDimensions);
     </script>
 </body>
 </html>
