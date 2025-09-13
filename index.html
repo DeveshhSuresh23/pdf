@@ -6,6 +6,8 @@
     <title>Interactive Teacher Video</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <style>
         /* Hide the scrollbar but allow scrolling */
         .no-scrollbar::-webkit-scrollbar {
@@ -21,7 +23,7 @@
 
     <div class="relative w-full h-full min-h-screen overflow-hidden bg-gray-900">
         <div class="absolute top-4 left-1/2 -translate-x-1/2 z-20">
-            <h1 class="text-white text-2xl font-bold rounded-full bg-slate-800 bg-opacity-70 px-4 py-2">Version 8</h1>
+            <h1 class="text-white text-2xl font-bold rounded-full bg-slate-800 bg-opacity-70 px-4 py-2">Version 10</h1>
         </div>
 
         <video id="teacherVideo" class="fixed top-0 left-0 min-w-full min-h-full w-auto h-auto object-cover" autoplay muted playsinline loop>
@@ -60,9 +62,34 @@
                 Next
             </button>
         </div>
+
+        <div id="notesSection" class="absolute top-1/2 left-4 -translate-y-1/2 z-20 bg-gray-800 bg-opacity-80 p-4 rounded-lg shadow-lg max-w-sm hidden">
+            <h2 class="text-white text-lg font-bold mb-2">My Notes</h2>
+            <div id="notesContainer" class="max-h-60 overflow-y-auto no-scrollbar mb-4 space-y-2">
+                </div>
+            <form id="noteForm" class="flex">
+                <input type="text" id="noteInput" placeholder="Write a new note..." class="flex-grow rounded-l-full py-2 px-4 bg-gray-700 text-white focus:outline-none">
+                <button type="submit" class="bg-green-600 text-white font-bold py-2 px-4 rounded-r-full hover:bg-green-700 transition duration-300">
+                    Save
+                </button>
+            </form>
+        </div>
     </div>
 
     <script>
+        // Your Firebase project configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDpU8O3y-jGO9bAeerf7TFChwuwxF17C-I",
+            authDomain: "pdfview-b4af4.firebaseapp.com",
+            projectId: "pdfview-b4af4",
+            storageBucket: "pdfview-b4af4.firebasestorage.app",
+            messagingSenderId: "945235833304",
+            appId: "1:945235833304:web:a7d3619c51c04c9dd282ad",
+            measurementId: "G-Q5P99PYPD6"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
         const pdfOverlay = document.getElementById('pdfOverlay');
         const pdfCanvas = document.getElementById('pdfCanvas');
         const pdfSelect = document.getElementById('pdfSelect');
@@ -73,6 +100,10 @@
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
         const pageInfo = document.getElementById('pageInfo');
+        const notesSection = document.getElementById('notesSection');
+        const notesContainer = document.getElementById('notesContainer');
+        const noteForm = document.getElementById('noteForm');
+        const noteInput = document.getElementById('noteInput');
         
         let pdfDoc = null;
         let currentPage = 1;
@@ -158,6 +189,32 @@
             pdfCanvas.width = pdfOverlay.clientWidth;
         };
 
+        // Firebase Notes Functions
+        const saveNote = async (e) => {
+            e.preventDefault();
+            const noteText = noteInput.value.trim();
+            if (noteText === '') return;
+            
+            await db.collection('notes').add({
+                text: noteText,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            noteInput.value = '';
+        };
+
+        const loadNotes = () => {
+            db.collection('notes').orderBy('timestamp').onSnapshot(snapshot => {
+                notesContainer.innerHTML = '';
+                snapshot.forEach(doc => {
+                    const note = doc.data();
+                    const noteElement = document.createElement('p');
+                    noteElement.className = 'text-sm text-white bg-slate-700 bg-opacity-70 p-2 rounded-md';
+                    noteElement.textContent = note.text;
+                    notesContainer.appendChild(noteElement);
+                });
+            });
+        };
+
         // Event Listeners
         pdfSelect.addEventListener('change', (event) => {
             const selectedPdfUrl = event.target.value;
@@ -174,6 +231,7 @@
                 pdfNavLeft.classList.add('hidden');
                 pdfNavRight.classList.add('hidden');
                 pageInfo.classList.add('hidden');
+                notesSection.classList.add('hidden');
                 togglePdfBtn.textContent = 'Show PDF';
             } else {
                 pdfOverlay.style.opacity = '1';
@@ -181,6 +239,7 @@
                 pdfNavLeft.classList.remove('hidden');
                 pdfNavRight.classList.remove('hidden');
                 pageInfo.classList.remove('hidden');
+                notesSection.classList.remove('hidden');
                 togglePdfBtn.textContent = 'Hide PDF';
             }
         });
@@ -199,6 +258,8 @@
             }
         });
 
+        noteForm.addEventListener('submit', saveNote);
+
         window.addEventListener('resize', () => {
             setOverlayDimensions();
             if (pdfDoc) {
@@ -206,7 +267,10 @@
             }
         });
 
-        document.addEventListener('DOMContentLoaded', setOverlayDimensions);
+        document.addEventListener('DOMContentLoaded', () => {
+            setOverlayDimensions();
+            loadNotes();
+        });
     </script>
 </body>
 </html>
