@@ -21,7 +21,7 @@
 
     <div class="relative w-full h-full min-h-screen overflow-hidden bg-gray-900">
         <div class="absolute top-4 left-1/2 -translate-x-1/2 z-20">
-            <h1 class="text-white text-2xl font-bold rounded-full bg-slate-800 bg-opacity-70 px-4 py-2">Version 7</h1>
+            <h1 class="text-white text-2xl font-bold rounded-full bg-slate-800 bg-opacity-70 px-4 py-2">Version 8</h1>
         </div>
 
         <video id="teacherVideo" class="fixed top-0 left-0 min-w-full min-h-full w-auto h-auto object-cover" autoplay muted playsinline loop>
@@ -34,6 +34,8 @@
         </div>
 
         <div id="statusMessage" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg text-lg hidden"></div>
+        
+        <div id="pageInfo" class="absolute top-4 right-4 text-white font-bold text-lg bg-slate-800 bg-opacity-70 rounded-full px-4 py-2 z-20 hidden"></div>
 
         <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-4 z-20">
             <select id="pdfSelect" class="bg-gray-700 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-gray-800 transition duration-300">
@@ -48,11 +50,12 @@
             </button>
         </div>
 
-        <div id="pdfNav" class="absolute top-1/2 left-1/2 -translate-x-1/2 flex items-center space-x-4 z-20 hidden">
+        <div id="pdfNavLeft" class="absolute bottom-4 left-4 z-20 hidden">
             <button id="prevBtn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-blue-700 transition duration-300">
                 Prev
             </button>
-            <span id="pageInfo" class="text-white font-bold"></span>
+        </div>
+        <div id="pdfNavRight" class="absolute bottom-4 right-4 z-20 hidden">
             <button id="nextBtn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-blue-700 transition duration-300">
                 Next
             </button>
@@ -65,7 +68,8 @@
         const pdfSelect = document.getElementById('pdfSelect');
         const togglePdfBtn = document.getElementById('togglePdfBtn');
         const statusMessage = document.getElementById('statusMessage');
-        const pdfNav = document.getElementById('pdfNav');
+        const pdfNavLeft = document.getElementById('pdfNavLeft');
+        const pdfNavRight = document.getElementById('pdfNavRight');
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
         const pageInfo = document.getElementById('pageInfo');
@@ -103,11 +107,13 @@
                 currentPage = 1;
                 console.log('PDF loaded successfully.');
                 
-                setOverlayDimensions(); // Set dimensions before rendering
+                setOverlayDimensions();
                 renderPage(currentPage);
 
                 togglePdfBtn.style.display = 'block';
-                pdfNav.classList.remove('hidden');
+                pdfNavLeft.classList.remove('hidden');
+                pdfNavRight.classList.remove('hidden');
+                pageInfo.classList.remove('hidden');
                 statusMessage.classList.add('hidden');
                 pdfOverlay.style.opacity = '1';
                 pdfOverlay.style.pointerEvents = 'auto';
@@ -115,7 +121,9 @@
                 console.error('Error loading PDF:', error);
                 showStatusMessage('Failed to load PDF. Make sure the file exists.');
                 togglePdfBtn.style.display = 'none';
-                pdfNav.classList.add('hidden');
+                pdfNavLeft.classList.add('hidden');
+                pdfNavRight.classList.add('hidden');
+                pageInfo.classList.add('hidden');
             }
         };
 
@@ -163,12 +171,16 @@
             if (isVisible) {
                 pdfOverlay.style.opacity = '0';
                 pdfOverlay.style.pointerEvents = 'none';
-                pdfNav.classList.add('hidden');
+                pdfNavLeft.classList.add('hidden');
+                pdfNavRight.classList.add('hidden');
+                pageInfo.classList.add('hidden');
                 togglePdfBtn.textContent = 'Show PDF';
             } else {
                 pdfOverlay.style.opacity = '1';
                 pdfOverlay.style.pointerEvents = 'auto';
-                pdfNav.classList.remove('hidden');
+                pdfNavLeft.classList.remove('hidden');
+                pdfNavRight.classList.remove('hidden');
+                pageInfo.classList.remove('hidden');
                 togglePdfBtn.textContent = 'Hide PDF';
             }
         });
